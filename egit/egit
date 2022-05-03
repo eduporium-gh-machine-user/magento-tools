@@ -4,9 +4,13 @@ trap 'echo "Script incomplete"' ERR
 ROOTDIR=/var/www/html
 APP_CODE=$ROOTDIR/app/code
 THEMEDIR=$ROOTDIR/app/design/frontend/Eduporium/Eduporium
-branch_name="$(git symbolic-ref HEAD 2>/dev/null)" ||
+root_branch_name="$(git -C $ROOTDIR symbolic-ref HEAD 2>/dev/null)" ||
 	branch_name="(unnamed branch)"     # detached HEAD
 
+theme_branch_name="$(git -C $THEMEDIR symbolic-ref HEAD 2>/dev/null)" ||
+	branch_name="(unnamed branch)"     # detached HEAD
+modules_branch_name="$(git -C $APP_CODE symbolic-ref HEAD 2>/dev/null)" ||
+	branch_name="(unnamed branch)"     # detached HEAD
 ############################################################
 # Help                                                     #
 ############################################################
@@ -75,9 +79,11 @@ Command=$1
 if [ $2 = "modules" ]
 then 
 	Directory=$APP_CODE
+	branch_name=$modules_branch_name
 elif [ $2 = "theme" ]
 then 
 	Directory=$THEMEDIR
+	branch_name=$theme_branch_name
 else
 	echo "Error: Please specify submodule. Either 'modules' or 'theme'."
 	exit
@@ -94,9 +100,8 @@ case $Command in
 		;;
 
 	add)
-		echo "Adding from app/code, theme, and root..."
+		echo "Adding $Directory..."
 		git -C $Directory add .
-		git -C $ROOTDIR add .
 		;;
 	commit)
 		if [$Commit_Message = ""]
@@ -104,14 +109,15 @@ case $Command in
 			echo "No commit message provided. Use -m <commit message>."
 			exit
 		fi
-		echo "Committing in app/code, theme, and root..."
+		echo "Committing $Directory changes to staging area..."
 		git -C $Directory commit -m "$Commit_Message"
-		git -C $ROOTDIR commit -m "$Commit_Message"
 		;;
 	push)
-		echo "Pushing all repositories..."
+		echo "Pushing to $Directory and updating references in root repo..."
 		git -C $Directory push origin $branch_name
-		git -C $ROOTDIR push origin $branch_name
+		git -C $ROOTDIR add .
+		git -C $ROOTDIR commit -m "egit: updated $Directory reference to the latest version"
+		git -C $ROOTDIR push origin $root_branch_name
 		;;
 	pull)
 		echo "Pulling all repositories"
@@ -130,13 +136,13 @@ case $Command in
 			echo "No commit message provided. Use -m <commit message>."
 			exit
 		fi
-		echo "Adding, commiting, and pushing all repos"
+		echo "Adding, commiting, and pushing $Directory and updating root repo references"
 		git -C $Directory add .
-		git -C $ROOTDIR add .
 		git -C $Directory commit -m "$Commit_Message"
-		git -C $ROOTDIR commit -m "$Commit_Message"
 		git -C $Directory push origin $branch_name
-		git -C $ROOTDIR push origin $branch_name
+		git -C $ROOTDIR add .
+		git -C $ROOTDIR commit -m "$Commit_Message"
+		git -C $ROOTDIR push origin $root_branch_name
 		;;
 	
 esac
