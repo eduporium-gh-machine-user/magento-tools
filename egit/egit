@@ -1,0 +1,144 @@
+#!/bin/bash
+
+trap 'echo "Script incomplete"' ERR
+ROOTDIR=/var/www/html
+APP_CODE=$ROOTDIR/app/code
+THEMEDIR=$ROOTDIR/app/design/frontend/Eduporium/Eduporium
+branch_name="$(git symbolic-ref HEAD 2>/dev/null)" ||
+	branch_name="(unnamed branch)"     # detached HEAD
+
+############################################################
+# Help                                                     #
+############################################################
+Help()
+{
+   # Display Help
+   echo "This is Eduporium's Git tool, which we use to manage our multi-repo/mono-repo hybrid code."
+   echo
+   echo "Syntax: egit [-h] <command>"
+   echo "commands:"
+   echo "initialize                 removes app/code and custom theme, and then downloads/installs as submodules."
+   echo "add                        Add all files over the repositories. Like 'git add .'"
+   echo "commit -m <commit message> Commit all added files locally over all repositories."
+   echo "push                       Push all changes to all remote origins."
+   echo "pull                       Pull changes from all repositories and update local filesystem."
+   echo "fetch                      Download changes from remote origins, but does NOT update local filesystem."
+   echo "gap -m <commit message>    Adds all changes, commits with message specified with -m, and pushes."
+   echo
+   echo "options:"
+   echo "h     			    Print this Help."
+   echo "m                          Specify commit message."
+   echo "r                          Specify project root. Defaults to /var/www/html"
+}
+
+############################################################
+############################################################
+# Main program                                             #
+############################################################
+############################################################
+# Check that there is a command
+if [ $# -eq 0 ]
+then
+	Help
+	exit
+fi
+
+# Set variables
+Commit_Message=""
+
+############################################################
+# Process the input options. Add options as needed.        #
+############################################################
+# Get the options
+OPTIND=3
+while getopts ":hm:" option; do
+   case $option in
+      h) # display Help
+         Help
+         exit;;
+      m) # Enter a name
+         Commit_Message=$OPTARG;;
+     r)
+	 ROOTDIR=$OPTARG;;
+     \?) # Invalid option
+         echo "Error: Invalid option."
+	 echo "For help use -h."
+         exit;;
+   esac
+done
+
+###########################################################
+# Process the command.                                    #
+###########################################################
+Command=$1
+
+if [ $2 = "modules" ]
+then 
+	Directory=$APP_CODE
+elif [ $2 = "theme" ]
+then 
+	Directory=$THEMEDIR
+else
+	echo "Error: Please specify submodule. Either 'modules' or 'theme'."
+	exit
+fi
+
+case $Command in 
+	initialize)
+		echo "Starting Initialization..."
+		git rm -r --cached $APP_CODE
+		git rm -r --cached $THEMEDIR
+		git -C $ROOTDIR submodule add git@github.com:Eduporium/Magento-Modules.git $APP_CODE
+		git -C $ROOTDIR submodule add git@github.com:Eduporium/Eduporium-Magento-Theme.git $THEMEDIR
+		git -C $ROOTDIR submodule init
+		;;
+
+	add)
+		echo "Adding from app/code, theme, and root..."
+		git -C $Directory add .
+		git -C $ROOTDIR add .
+		;;
+	commit)
+		if [$Commit_Message = ""]
+		then
+			echo "No commit message provided. Use -m <commit message>."
+			exit
+		fi
+		echo "Committing in app/code, theme, and root..."
+		git -C $Directory commit -m "$Commit_Message"
+		git -C $ROOTDIR commit -m "$Commit_Message"
+		;;
+	push)
+		echo "Pushing all repositories..."
+		git -C $Directory push origin $branch_name
+		git -C $ROOTDIR push origin $branch_name
+		;;
+	pull)
+		echo "Pulling all repositories"
+		git pull --recurse-submodules
+		git -C $Directory pull
+		git -C $ROOTDIR pull
+		;;
+	fetch)
+		echo "fetching"
+		git -C $Directory fetch
+		git -C $ROOTDIR fetch
+		;;
+	gap) 
+		if [$Commit_Message = ""]
+		then
+			echo "No commit message provided. Use -m <commit message>."
+			exit
+		fi
+		echo "Adding, commiting, and pushing all repos"
+		git -C $Directory add .
+		git -C $ROOTDIR add .
+		git -C $Directory commit -m "$Commit_Message"
+		git -C $ROOTDIR commit -m "$Commit_Message"
+		git -C $Directory push origin $branch_name
+		git -C $ROOTDIR push origin $branch_name
+		;;
+	
+esac
+
+
